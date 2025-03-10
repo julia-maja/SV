@@ -18,10 +18,9 @@ library(rfishbase)
 library(rentrez)
 library(taxize)
 
-url <- 'https://docs.google.com/spreadsheets/d/1-5vhk_YOV4reklKyM98G4MRWEnNbcu6mnmDDJkO4DlM/edit#gid=0'
-cetaceans_full <- read.csv(text=gsheet2text(url, format='csv'), stringsAsFactors=FALSE)
 
-sp_data <- read.csv("/Users/user2/Desktop/SV_project/saccus_vasculosus.csv")
+url <- 'https://docs.google.com/spreadsheets/d/1Z2P6dAcoU0-Kh0UqVgIAeongX5IJohuMUKG1PyrNraU/edit?gid=84578656#gid=84578656'
+sp_data <- read.csv(text=gsheet2text(url, format='csv'), stringsAsFactors=FALSE)
 trait.data <- sp_data[,c("species", "SV", "order")]
 trait.data$tips <- trait.data$species
 trait.data$tips <- str_replace(trait.data$species, pattern = " ", replacement = "_")
@@ -35,8 +34,7 @@ resolved_names <- (otol_names[!(is.na(otol_names$unique_name)),]
 
 # ensuring all instances of a species with genome assemblies have a "y"
 # and shifting the SV classification scale
-SV_data_1 <- read.csv("/Users/user2/Desktop/SV_project/saccus_vasculosus.csv")
-SV_data_1 <- (SV_data_1 %>% filter(SV != "") 
+SV_data <- (sp_data %>% filter(SV != "") 
   %>% mutate(species = str_replace(species, " ", "_"))
   %>% group_by(species) 
   %>% mutate(
@@ -60,9 +58,28 @@ SV_data_1 <- (SV_data_1 %>% filter(SV != "")
     SV == 3.5 ~ 4,
     TRUE ~ SV))
   %>% mutate(SV = as.character(SV))
+  %>% filter(unique_name !="")
 )
 
+# taking the median across species with multiple entries 
+# when a species has an entry with a 0 but other entries > 0, ignore the 0
+# eventually implement data quality scores to get a more reliable average
+SV_data_avg <- (SV_data %>% group_by(unique_name) 
+            %>% mutate(unique_name = as.character(unique_name), SV = as.numeric(SV))
+            %>% mutate(nonzero_exists = any(SV > 0)) 
+            %>% filter(!(nonzero_exists & SV == 0)) 
+            %>% summarise(SV = median(SV, na.rm = TRUE)) 
+            %>% ungroup()
+            %>% mutate(SV = as.character(SV))
+            %>% left_join(SV_data, by = "unique_name")
+            %>% select("unique_name", "SV.x", "order", "genome.assembly", "ott_id", "flags", "tips")
+            #%>% rename("SV", "SV.x")
+)
 
+SV_data_avg$SV <- SV_data_avg$SV.x
+SV_data_avg <- (SV_data_avg %>% select("unique_name", "SV", "order", "genome.assembly", "ott_id", "flags", "tips")
+                %>% group_by(unique_name) %>% distinct() %>% ungroup()
+                )
 # adding orders -----------------------------------------------------------
 options(taxize_entrez_key = "ecfcbe684204381f87a6d00c9cb5c80a5a08")
 get_order <- function(species_name) {
@@ -80,38 +97,46 @@ get_order <- function(species_name) {
   return(tax_order)
 }
 
-# #testing:
-# SV_data <- SV_data[1:5,]
-# SV_data_order <- SV_data %>% mutate(order = purrr::map_chr(unique_name, get_order)) 
-# yippee! it works
 
-SV_data <- SV_data_1 %>% mutate(order = purrr::map_chr(unique_name, get_order))
-
-# problems:
-# result <- get_order("Dicentrarchus labrax") # no "order" in rank column #solved
-# result <- get_order("Heterocharax leptogrammus") # tax_data[[1]] is NA #solved
-
-# some counts of the data:
-all_species <- SV_data_1 %>% distinct(species) %>% count()
-no_data <- SV_data_1 %>% filter(SV == "no data") %>% distinct(species) %>% count()
-with_data <- SV_data_1 %>% filter(SV != "no data") %>% filter(SV != "") %>% distinct(species) %>% count()
-searched <- no_data + with_data
-with_genomes <- SV_data_1 %>% filter(genome.assembly == "y") %>% distinct(species) %>% count()
-with_genomes_and_data <- SV_data_1 %>% filter(SV != "no data", genome.assembly == "y") %>% filter(SV != "", genome.assembly == "y") %>% distinct(species) %>% count()
-with_genomes_no_data <- SV_data_1 %>% filter(SV == "no data", genome.assembly == "y") %>% distinct(species) %>% count()
-
-summary_table <- data.frame(
-  Category = c("all species", "no data", "with data", "searched", "with genomes", "with genomes and data", "with genomes and no data"),
-  Count = c(all_species$n, no_data$n, with_data$n, searched$n, with_genomes$n, with_genomes_and_data$n, with_genomes_no_data$n)
-)
+SV_data_orders <- SV_data_avg %>% mutate(order = purrr::map_chr(unique_name, get_order))
 
 
-# tree building:
+# filling in missing orders using fishbase --------------------------------
+fishbase_species <- rfishbase::load_taxa()
+species <- SV_data_orders$unique_name
+fishbase_species_sub <- fishbase_species[fishbase_species$Species %in% species,]
+# missing 215 species! ncbi was only missing 25
+
+# filling in those 25 with fishbase:
+SV_data_orders_NA <- SV_data_orders[is.na(SV_data_orders$order), ]
+species <- SV_data_orders_NA$unique_name
+ncbi_missing_orders_in_fishbase <- fishbase_species[fishbase_species$Species %in% species,]
+ncbi_missing_orders_in_fishbase <- ncbi_missing_orders_in_fishbase %>% select("Species", "Order")
+
+
+SV_data_orders_complete <- SV_data_orders %>% rename(Species, unique_name) # %>% left_join(ncbi_missing_orders_in_fishbase, by = )
+# losing my mind because I don't understand why rename() doesn't work but the same exact syntax worked in line 30
+
+
+
+
+
+
+SV_data_presence <- (SV_data_orders 
+              %>% mutate(presence = ifelse(SV != 0, "present", "absent"))
+        )
+
+# tree building for SV complexity:
 tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
 tr <- multi2di(tr)
 tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
 ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
 
+# tree bulding for SV presence/ absence:
+tr <- tol_induced_subtree(ott_ids = SV_data_presence$ott_id[SV_data_presence$flags %in% c("sibling_higher", "")], label_format = "id") 
+tr <- multi2di(tr)
+tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data_presence$ott_id, sep = ""))]
+ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
 
 # Section 2: Creating the SV plots w OTL --------------------------------
 
@@ -120,9 +145,17 @@ display.brewer.all(type = "seq")
 display.brewer.all(type = "div")
 display.brewer.all(type = "all")
 
+# SV complexity
 sv_palette <- c("oldlace", "#FEEBE2", "#FBB4B9", "#F768A1", "#C51B8A", "#7A0177", "slateblue")
 sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "SV", "genome.assembly")] 
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x, fill = SV), inherit.aes = FALSE, color = "transparent") + scale_fill_brewer(palette = "RdPu") 
+sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x+15, fill = genome.assembly), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = sv_palette) 
+sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
+sv.plot 
+
+# SV presence/ absence
+sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data_presence[, c("tips", "presence", "genome.assembly")] 
+sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_brewer(palette = "RdPu") 
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x+15, fill = genome.assembly), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = sv_palette) 
 sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
 sv.plot 
@@ -135,27 +168,27 @@ node_labels
 # find mrca of a set of species
 
 # amelia's function:
-findMRCANode <- function(phylo, trait.data, taxonomic_level_col){
-  nodes_list <- list()
-  for(i in unique(trait.data[,taxonomic_level_col])){
-    #ensure the species are in the tree you're working with
-    trait.data <- trait.data[trait.data$tips %in% phylo$tip.label,]
-    #remove any taxonomic levels with only one species (cannot find MRCA for one species)
-    trait.data <- trait.data %>% group_by_at(taxonomic_level_col) %>% filter(n()>1)
-    #subset the trait data into species belonging to the same taxonomic group
-    trait.data.filtered <- trait.data[trait.data[,taxonomic_level_col] == i, ]
-    #take the vector of these species names
-    tip_vector <- as.vector(trait.data.filtered[, "tips"])
-    #find the node number of the MRCA of these species
-    MRCA_node <- findMRCA(phylo, tip_vector$tips)
-    #create a dataframe
-    loop_df <- data.frame(clade_name = i, node_number = MRCA_node)
-    #add to list, to extract later (out of for loop)
-    nodes_list[[i]] <- loop_df}
-  
-  nodes_df <- do.call(rbind, nodes_list)
-  return(nodes_df)
-}
+# findMRCANode <- function(phylo, trait.data, taxonomic_level_col){
+#   nodes_list <- list()
+#   for(i in unique(trait.data[,taxonomic_level_col])){
+#     #ensure the species are in the tree you're working with
+#     trait.data <- trait.data[trait.data$tips %in% phylo$tip.label,]
+#     #remove any taxonomic levels with only one species (cannot find MRCA for one species)
+#     trait.data <- trait.data %>% group_by_at(taxonomic_level_col) %>% filter(n()>1)
+#     #subset the trait data into species belonging to the same taxonomic group
+#     trait.data.filtered <- trait.data[trait.data[,taxonomic_level_col] == i, ]
+#     #take the vector of these species names
+#     tip_vector <- as.vector(trait.data.filtered[, "tips"])
+#     #find the node number of the MRCA of these species
+#     MRCA_node <- findMRCA(phylo, tip_vector$tips)
+#     #create a dataframe
+#     loop_df <- data.frame(clade_name = i, node_number = MRCA_node)
+#     #add to list, to extract later (out of for loop)
+#     nodes_list[[i]] <- loop_df}
+#   
+#   nodes_df <- do.call(rbind, nodes_list)
+#   return(nodes_df)
+# }
 
 # my attempt at making it work:
 findMRCANode <- function(phylo, trait.data){
@@ -187,10 +220,10 @@ findMRCANode <- function(phylo, trait.data){
   return(nodes_df)
 }
 
-nodes <- findMRCANode(phylo = tr, trait.data = SV_data)
+nodes <- findMRCANode(phylo = tr, trait.data = SV_data_orders)
 
 
-all_nodes <- lapply(unique(SV_data$order), function(x) findMRCANode(phylo = tr, trait.data = SV_data))
+all_nodes <- lapply(unique(SV_data_orders$order), function(x) findMRCANode(phylo = tr, trait.data = SV_data_orders))
 nodes_df <- do.call(rbind, all_nodes)
 nodes_df <- nodes_df %>% distinct()
 
