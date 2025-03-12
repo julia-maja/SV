@@ -50,16 +50,13 @@ SV_data <- (sp_data %>% filter(SV != "")
   %>% select("species", "unique_name", "order", "SV", "genome.assembly", "ott_id", "flags")
   %>% mutate(tips = unique_name)
   %>% filter(SV != "no data")
-  %>% mutate(SV = as.numeric(SV))
-  %>% mutate(SV = case_when(
-    SV == 2 ~ 1,
-    SV == 0.5 ~ 1,
-    SV == 2.5 ~ 2,
-    SV == 3.5 ~ 4,
-    TRUE ~ SV))
-  %>% mutate(SV = as.character(SV))
+  %>% mutate(SV = str_replace(SV, "2", "1"), str_replace(SV, "0.5", "1"), str_replace(SV, "2.5", "2"), str_replace(SV, "3.5", "4"))
   %>% filter(unique_name !="")
+  %>% select("species", "unique_name", "order", "SV", "genome.assembly", "ott_id", "flags", "tips")
 )
+
+# add existing orders from previous runs of this script:
+SV_data <- SV_data %>% left_join(Species_order, by = c("unique_name" = "Species")) %>% mutate(order.x = ifelse(order.x == "", order.y, order.x)) %>% mutate(order.x = ifelse(is.na(order.x), order.y, order.x)) %>% rename("order" = "order.x") %>% select("species", "unique_name", "order", "SV", "genome.assembly", "ott_id", "flags", "tips") 
 
 # taking the median across species with multiple entries 
 # when a species has an entry with a 0 but other entries > 0, ignore the 0
@@ -80,6 +77,8 @@ SV_data_avg$SV <- SV_data_avg$SV.x
 SV_data_avg <- (SV_data_avg %>% select("unique_name", "SV", "order", "genome.assembly", "ott_id", "flags", "tips")
                 %>% group_by(unique_name) %>% distinct() %>% ungroup()
                 )
+# SV_data_avg does not retain SV values of "present" because of as.numeric()
+
 # adding orders -----------------------------------------------------------
 options(taxize_entrez_key = "ecfcbe684204381f87a6d00c9cb5c80a5a08")
 get_order <- function(species_name) {
@@ -97,8 +96,7 @@ get_order <- function(species_name) {
   return(tax_order)
 }
 
-
-SV_data_orders <- SV_data_avg %>% mutate(order = purrr::map_chr(unique_name, get_order))
+SV_data_orders <- SV_data_avg %>% mutate(order = ifelse(is.na(order), purrr::map_chr(unique_name, get_order), order))
 
 
 # filling in missing orders using fishbase --------------------------------
@@ -113,17 +111,24 @@ species <- SV_data_orders_NA$unique_name
 ncbi_missing_orders_in_fishbase <- fishbase_species[fishbase_species$Species %in% species,]
 ncbi_missing_orders_in_fishbase <- ncbi_missing_orders_in_fishbase %>% select("Species", "Order")
 
+SV_data_orders_complete <- SV_data_orders %>% rename("Species" = "unique_name") %>% left_join(ncbi_missing_orders_in_fishbase, by = "Species") %>% mutate(order = ifelse(is.na(order), Order, order))
+# use equal instead of comma for rename(). 
 
-SV_data_orders_complete <- SV_data_orders %>% rename(Species, unique_name) # %>% left_join(ncbi_missing_orders_in_fishbase, by = )
-# losing my mind because I don't understand why rename() doesn't work but the same exact syntax worked in line 30
+# make a reference table for species and orders so you don't have to keep running th eget_order() function all over again each time you increase the dataset:
+Species_order <- SV_data_orders_complete %>% group_by(Species) %>% distinct() %>% select("Species", "order")
+write.csv(Species_order, "/Users/user2/Desktop/SV_project/Species_order.csv")
 
 
 
+# change SV_data_avg so that it retains "present" values in SV
 
 
 
-SV_data_presence <- (SV_data_orders 
+SV_data_presence <- (SV_data
               %>% mutate(presence = ifelse(SV != 0, "present", "absent"))
+              %>% group_by(tips)
+              %>% select("unique_name", "order", "tips", "presence", "ott_id", "flags", "genome.assembly")
+              %>% distinct()
         )
 
 # tree building for SV complexity:
@@ -149,7 +154,7 @@ display.brewer.all(type = "all")
 sv_palette <- c("oldlace", "#FEEBE2", "#FBB4B9", "#F768A1", "#C51B8A", "#7A0177", "slateblue")
 sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "SV", "genome.assembly")] 
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x, fill = SV), inherit.aes = FALSE, color = "transparent") + scale_fill_brewer(palette = "RdPu") 
-sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x+15, fill = genome.assembly), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = sv_palette) 
+sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x+15, fill = genome.assembly), inherit.aes = FALSE, color = "transparent") + scale_fill_brewer(palette = "RdPu") 
 sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
 sv.plot 
 
@@ -220,16 +225,17 @@ findMRCANode <- function(phylo, trait.data){
   return(nodes_df)
 }
 
-nodes <- findMRCANode(phylo = tr, trait.data = SV_data_orders)
+nodes <- findMRCANode(phylo = tr, trait.data = SV_data_orders_complete)
 
 
-all_nodes <- lapply(unique(SV_data_orders$order), function(x) findMRCANode(phylo = tr, trait.data = SV_data_orders))
+all_nodes <- lapply(unique(SV_data_orders_complete$order), function(x) findMRCANode(phylo = tr, trait.data = SV_data_orders_complete))
 nodes_df <- do.call(rbind, all_nodes)
 nodes_df <- nodes_df %>% distinct()
 
 #can now easily label all clades within that taxonomic level on the tree using the nodes_df
+num_orders <- SV_data_orders_complete %>% group_by(order) %>% distinct() %>% count()
 set.seed(30) 
-color_palette <- #sample(colors(), 41)  
+color_palette <- sample(colors(), num_orders)  
 nodes_df$colour <- color_palette
 order_tree <- sv.plot + geom_cladelab(node = nodes_df$node_number,
                                       label = nodes_df$clade_name,
