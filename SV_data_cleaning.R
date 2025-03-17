@@ -34,26 +34,27 @@ resolved_names <- (otol_names[!(is.na(otol_names$unique_name)),]
 
 # ensuring all instances of a species with genome assemblies have a "y"
 # and shifting the SV classification scale
-SV_data <- (sp_data %>% filter(SV != "") 
-  %>% mutate(species = str_replace(species, " ", "_"))
-  %>% group_by(species) 
-  %>% mutate(
-    genome.assembly = if_else(
-      genome.assembly == '' & any(genome.assembly == 'y'),  
-      'y',  
-      genome.assembly 
-    )
-  ) 
-  %>% ungroup()
-  %>% mutate(species = tolower(species))
-  %>% left_join(resolved_names, by = "species")
-  %>% select("species", "unique_name", "order", "SV", "genome.assembly", "ott_id", "flags")
-  %>% mutate(tips = unique_name)
-  %>% filter(SV != "no data")
-  %>% mutate(SV = str_replace(SV, "2", "1"), str_replace(SV, "0.5", "1"), str_replace(SV, "2.5", "2"), str_replace(SV, "3.5", "4"))
-  %>% filter(unique_name !="")
-  %>% select("species", "unique_name", "order", "SV", "genome.assembly", "ott_id", "flags", "tips")
-)
+# SV_data <- (sp_data 
+#   %>% mutate(species = str_replace(species, " ", "_"))
+#   %>% group_by(species) 
+#   %>% mutate(
+#     genome.assembly = if_else(
+#       genome.assembly == '' & any(genome.assembly == 'y'),  
+#       'y',  
+#       genome.assembly 
+#     )
+#   ) 
+#   %>% ungroup()
+#   %>% mutate(species = tolower(species))
+#   %>% left_join(resolved_names, by = "species")
+#   %>% select("species", "unique_name", "order", "SV", "genome.assembly", "presence", "ott_id", "flags")
+#   %>% mutate(tips = unique_name)
+#   %>% filter(source != "")
+#   %>% mutate(presence = ifelse(presence == "" && SV == "0", "absent", "present"))
+#   %>% mutate(SV = str_replace(SV, "2", "1"), str_replace(SV, "0.5", "1"), str_replace(SV, "2.5", "2"), str_replace(SV, "3.5", "4"))
+#   %>% filter(unique_name !="")
+#   %>% select("species", "unique_name", "order", "SV", "genome.assembly", "ott_id", "flags", "tips")
+# )
 
 # add existing orders from previous runs of this script:
 SV_data <- SV_data %>% left_join(Species_order, by = c("unique_name" = "Species")) %>% mutate(order.x = ifelse(order.x == "", order.y, order.x)) %>% mutate(order.x = ifelse(is.na(order.x), order.y, order.x)) %>% rename("order" = "order.x") %>% select("species", "unique_name", "order", "SV", "genome.assembly", "ott_id", "flags", "tips") 
@@ -129,6 +130,7 @@ SV_data_presence <- (SV_data
               %>% group_by(tips)
               %>% select("unique_name", "order", "tips", "presence", "ott_id", "flags", "genome.assembly")
               %>% distinct()
+              %>% ungroup()
         )
 
 # tree building for SV complexity:
