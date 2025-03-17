@@ -60,34 +60,15 @@ SV_data <- SV_data %>% mutate(SV = ifelse(SV == "present", NA, SV))
 SV_data <- SV_data %>% rename("Species" = "unique_name")
 SV_data <- SV_data %>% select("Species", "order", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips")
 
-# add orders to the data
+# add order, family, genus to the data
 # SV_data_orders_ncbi <- SV_data %>% mutate(order = ifelse(is.na(order), purrr::map_chr(unique_name, get_order), order))
 
 fishbase_species <- rfishbase::load_taxa()
-SV_data_orders <- SV_data %>% left_join(fishbase_species, by = "Species")
-SV_data_orders <- SV_data_orders %>% mutate(order = ifelse((is.na(order) | order == ""), Order, order))
-SV_data_orders <- SV_data_orders %>% select("Species", "order", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips")
+SV_data <- SV_data %>% left_join(fishbase_species, by = "Species")
+SV_data <- SV_data_orders %>% select("Species", "Order", "Family", "Genus", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips")
 
 
-SV_data_avg <- (SV_data_orders %>% group_by(Species) 
-                %>% mutate(Species = as.character(Species), SV = as.numeric(SV))
-                %>% mutate(nonzero_exists = any(SV > 0)) 
-                %>% filter((nonzero_exists & SV == 0)) 
-                %>% summarise(SV = median(SV, na.rm = TRUE)) 
-                %>% ungroup()
-                %>% mutate(SV = as.character(SV))
-                %>% left_join(SV_data, by = "Species")
-                %>% rename("SV" = "SV.x")
-                %>% select("Species", "SV", "order", "presence", "genome.assembly", "ott_id", "flags", "tips")
-                %>% group_by(Species)
-                %>% distinct() 
-                %>% ungroup()
-)
-# this gets rid of duplicate entries by averaging their SV values. 
-# for cases where a species has nonzero and zero sv values the 0 gets ignored.
-# cases like this ^ can result in duplicates because the presence column is difference for the row(s) with 0 vs the row(s) with nonzero SV values. need to make sure to keep the "present" value.
-
-SV_data_avg <- SV_data_orders %>% group_by(Species) 
+SV_data_avg <- SV_data %>% group_by(Species) 
 SV_data_avg <- SV_data_avg %>% mutate(Species = as.character(Species), SV = as.numeric(SV))
 SV_data_avg <- SV_data_avg %>% mutate(SV = ifelse(SV == 0, NA, SV))
 #SV_data_avg <- SV_data_avg %>% mutate(test = !(any(SV > 0) & SV ==0))
@@ -97,7 +78,7 @@ SV_data_avg <- SV_data_avg %>% mutate(SV2 = median(SV, na.rm = TRUE))
 SV_data_avg <- SV_data_avg %>% group_by(Species) %>% mutate(SV3 = ifelse(all(is.na(SV)) & presence == "absent",0,SV2))
 SV_data_avg <- SV_data_avg %>% group_by(Species) %>% mutate(presence = ifelse( presence == "absent" & any(presence == "present"), "present", presence ))
 
-SV_data_avg <- SV_data_avg %>% select("Species", "order", "SV3", "presence", "genome.assembly", "ott_id", "flags", "tips") 
+SV_data_avg <- SV_data_avg %>% select("Species", "Order", "Family", "Genus", "SV3", "presence", "genome.assembly", "ott_id", "flags", "tips") 
 SV_data_avg <- SV_data_avg %>% distinct() 
 SV_data_avg <- SV_data_avg %>% ungroup()
 SV_data_avg <- SV_data_avg %>% mutate(tips = str_replace(tips, " ", "_"))

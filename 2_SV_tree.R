@@ -17,19 +17,94 @@ library(ggimage)
 library(rfishbase)
 library(rentrez)
 library(taxize)
+library(rotl)
+library(ggtree)
+library(stringr)
+library(scales)
+library(gsheet)
+library(ape)
+library(patchwork)
+library(ggpubr)
+library(xlsx)
+library(geiger)
+library(here)
 
 source("/Users/user2/Desktop/SV_project/SV_functions.R")
 SV_data_avg <- read.csv("/Users/user2/Desktop/SV_project/SV_data_avg.csv")
 
-
+resolved_names <- SV_data_avg
 
 # SV presence/ absence
-tr <- tol_induced_subtree(ott_ids = SV_data_avg$ott_id[SV_data_avg$flags %in% c("sibling_higher", "")], label_format = "id") 
+tr <- tol_induced_subtree(ott_ids = resolved_names$ott_id[resolved_names$flags %in% c("sibling_higher", "")], label_format = "id") 
 tr <- multi2di(tr)
-tr$tip.label <- SV_data_avg$tips[match(tr$tip.label, paste("ott", SV_data_avg$ott_id, sep = ""))]
+resolved_names$ott_id <- paste("ott", resolved_names$ott_id, sep = "")
 
-df <- data.frame(names = tr$tip.label, output = SV_data_avg$tips[match(tr$tip.label, paste("ott", SV_data_avg$ott_id, sep = ""))])
 
+
+# time calibrate the tree:
+
+reference.df <- resolved_names[resolved_names$ott_id %in% tr$tip.label,c("Order", "Family", "Genus", "Species", "tips", "ott_id")]
+colnames(reference.df) <- c("Order", "Family", "Genus", "Species", "tips_species", "tips")
+rownames(reference.df) <- reference.df$tips
+
+# # two tips can't be found in the resolved_names df, but I cannot figure out why
+# > tr$tip.label[!(tr$tip.label %in% resolved_names$ott_id)]
+# [1] "mrcaott320143ott351725" "mrcaott106188ott185786"
+
+# some are duplicated, or have missing data, remove them
+reference.df <- reference.df[!duplicated(reference.df$Species),]
+reference.df <- reference.df[!is.na(reference.df$Species),]
+
+
+saveRDS(reference.df, "/Users/user2/Desktop/SV_project/reference_df.rds")
+saveRDS(tr, "/Users/user2/Desktop/SV_project/tol_induced_tree.rds")
+
+
+# Load the timetree tree (genus level data works, but not species)
+# Have download timetree data for species, genus, family, and order
+# Genus level data has the most calibration points
+
+reference.df <- readRDS("/Users/user2/Desktop/SV_project/reference_df.rds")
+tr <- readRDS("/Users/user2/Desktop/SV_project/tol_induced_tree.rds")
+
+timetree_order <- ape::read.tree("/Users/user2/Desktop/SV_project/timetree_data/actinopterygii_order.nwk")
+timetree_family <- ape::read.tree("/Users/user2/Desktop/SV_project/timetree_data/actinopterygii_family.nwk")
+timetree_genus <- ape::read.tree("/Users/user2/Desktop/SV_project/timetree_data/actinopterygii_genus.nwk")
+
+# Use geiger to congruify the tree, works with treePL
+# This seems to work up to genus, but not species (by replacing tip.labels with the same names)
+
+geiger.order <- congruify.phylo(reference = timetree_order, target = tr, taxonomy = reference.df, tol = 0, scale = "treePL")
+
+geiger.family <- congruify.phylo(reference = timetree_family, target = geiger.order$phy, taxonomy = reference.df, tol = 0, scale = "treePL")
+
+geiger.genus <- congruify.phylo(reference = timetree_genus, target = geiger.family$phy, taxonomy = reference.df, tol = 0, scale = "treePL")
+
+tr.calibrated <- geiger.genus$phy
+
+## Save out files
+
+saveRDS(tr.calibrated, file = "calibrated_phylo.rds")
+
+# Add in a stop here
+
+print("this is the last message")
+stop()
+print("you should not see this")
+
+
+
+
+
+
+
+
+
+
+
+
+
+# tr$tip.label <- resolved_names$tips[match(tr$tip.label, paste("ott", resolved_names$ott_id, sep = ""))]
 ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
 
 sv_palette <- c("oldlace", "#FEEBE2", "#FBB4B9", "#F768A1", "#C51B8A", "#7A0177", "slateblue")
