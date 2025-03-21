@@ -16,7 +16,37 @@ get_order_ncbi <- function(species_name) {
   return(tax_order)
 }
 
+options(taxize_entrez_key = "ecfcbe684204381f87a6d00c9cb5c80a5a08")
+get_family_ncbi <- function(species_name) {
+  tax_data <- classification(species_name, db = "ncbi")
+  tax_df <- tax_data[[1]]
+  if ( any(is.na(tax_data[[1]])) ) {
+    return(NA)  
+  }
+  order_row <- which(tax_df$rank == "family")
+  if (length(order_row) > 0) {
+    tax_order <- tax_df[order_row, 1]  
+  } else {
+    tax_order <- NA  
+  }
+  return(tax_order)
+}
 
+options(taxize_entrez_key = "ecfcbe684204381f87a6d00c9cb5c80a5a08")
+get_genus_ncbi <- function(species_name) {
+  tax_data <- classification(species_name, db = "ncbi")
+  tax_df <- tax_data[[1]]
+  if ( any(is.na(tax_data[[1]])) ) {
+    return(NA)  
+  }
+  order_row <- which(tax_df$rank == "genus")
+  if (length(order_row) > 0) {
+    tax_order <- tax_df[order_row, 1]  
+  } else {
+    tax_order <- NA  
+  }
+  return(tax_order)
+}
 
 # function that finds the node number of the MCRA of each order
 findMRCANode <- function(phylo, trait.data){

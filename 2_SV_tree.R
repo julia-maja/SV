@@ -29,8 +29,8 @@ library(xlsx)
 library(geiger)
 library(here)
 
-source("/Users/user2/Desktop/SV_project/SV_functions.R")
-SV_data_avg <- read.csv("/Users/user2/Desktop/SV_project/SV_data_avg.csv")
+source("/Users/juliamaja/Desktop/SV/SV_functions.R")
+SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
 
 resolved_names <- SV_data_avg
 
@@ -47,29 +47,25 @@ reference.df <- resolved_names[resolved_names$ott_id %in% tr$tip.label,c("Order"
 colnames(reference.df) <- c("Order", "Family", "Genus", "Species", "tips_species", "tips")
 rownames(reference.df) <- reference.df$tips
 
-# # two tips can't be found in the resolved_names df, but I cannot figure out why
-# > tr$tip.label[!(tr$tip.label %in% resolved_names$ott_id)]
-# [1] "mrcaott320143ott351725" "mrcaott106188ott185786"
-
-# some are duplicated, or have missing data, remove them
-reference.df <- reference.df[!duplicated(reference.df$Species),]
-reference.df <- reference.df[!is.na(reference.df$Species),]
+# # some are duplicated, or have missing data, remove them
+# reference.df <- reference.df[!duplicated(reference.df$Species),]
+# reference.df <- reference.df[!is.na(reference.df$Species),]
 
 
-saveRDS(reference.df, "/Users/user2/Desktop/SV_project/reference_df.rds")
-saveRDS(tr, "/Users/user2/Desktop/SV_project/tol_induced_tree.rds")
+saveRDS(reference.df, "/Users/juliamaja/Desktop/SV/reference_df.rds")
+saveRDS(tr, "/Users/juliamaja/Desktop/SV/tol_induced_tree.rds")
 
 
 # Load the timetree tree (genus level data works, but not species)
 # Have download timetree data for species, genus, family, and order
 # Genus level data has the most calibration points
 
-reference.df <- readRDS("/Users/user2/Desktop/SV_project/reference_df.rds")
-tr <- readRDS("/Users/user2/Desktop/SV_project/tol_induced_tree.rds")
+reference.df <- readRDS("/Users/juliamaja/Desktop/SV/reference_df.rds")
+tr <- readRDS("/Users/juliamaja/Desktop/SV/tol_induced_tree.rds")
 
-timetree_order <- ape::read.tree("/Users/user2/Desktop/SV_project/timetree_data/actinopterygii_order.nwk")
-timetree_family <- ape::read.tree("/Users/user2/Desktop/SV_project/timetree_data/actinopterygii_family.nwk")
-timetree_genus <- ape::read.tree("/Users/user2/Desktop/SV_project/timetree_data/actinopterygii_genus.nwk")
+timetree_order <- ape::read.tree("/Users/juliamaja/Desktop/SV/timetree_data/actinopterygii_order.nwk")
+timetree_family <- ape::read.tree("/Users/juliamaja/Desktop/SV/timetree_data/actinopterygii_family.nwk")
+timetree_genus <- ape::read.tree("/Users/juliamaja/Desktop/SV/timetree_data/actinopterygii_genus.nwk")
 
 # Use geiger to congruify the tree, works with treePL
 # This seems to work up to genus, but not species (by replacing tip.labels with the same names)
@@ -103,8 +99,8 @@ print("you should not see this")
 
 
 
-
-# tr$tip.label <- resolved_names$tips[match(tr$tip.label, paste("ott", resolved_names$ott_id, sep = ""))]
+# tree for sv absence/ presence:
+tr$tip.label <- resolved_names$tips[match(tr$tip.label, paste("ott", resolved_names$ott_id, sep = ""))]
 ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
 
 sv_palette <- c("oldlace", "#FEEBE2", "#FBB4B9", "#F768A1", "#C51B8A", "#7A0177", "slateblue")
@@ -113,6 +109,21 @@ sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x+15, fill = genome.assembly), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = sv_palette) 
 sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
 sv.plot 
+
+# tree building for SV complexity:
+SV_data <- SV_data_avg
+tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
+tr <- multi2di(tr)
+tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
+ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
+sv_palette <- c("oldlace", "#FEEBE2", "#FBB4B9", "#F768A1", "#C51B8A", "#7A0177", "slateblue")
+sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "SV3", "genome.assembly")] 
+sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x, fill = SV3), inherit.aes = FALSE, color = "transparent") + scale_fill_gradient(low = "tomato", high = "palegreen", na.value = NA)
+#sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x+15, fill = genome.assembly), inherit.aes = FALSE, color = "transparent") + scale_color_gradient(low = "white", high = "black")
+sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
+sv.plot
+
+
 
 # add order labels to tree
 node_labels <- ggtree(tr, layout = "circular") + geom_text(aes(label=node),colour = "blue", hjust=-.2, size = 2) + geom_tiplab(size = 2, hjust = -0.1)

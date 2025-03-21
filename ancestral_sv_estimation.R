@@ -1,6 +1,6 @@
 library("corHMM")
 
-SV_data_avg <- read.csv("/Users/user2/Desktop/SV_project/SV_data_avg.csv")
+SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
 
 
 # ace ---------------------------------------------------------------------
@@ -26,7 +26,7 @@ standard_tests[[3]] <- ace(trait.vector_n, trpy_n, model = "ARD", type = "discre
 
 # corHMM ------------------------------------------------------------------
 
-SV_data_avg <- read.csv("/Users/user2/Desktop/SV_project/SV_data_avg.csv")
+SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
 #SV_data_avg <- SV_data_avg[1:10, ]
 
 SV_data_avg <- SV_data_avg[SV_data_avg$tips %in% tr$tip.label, ]
