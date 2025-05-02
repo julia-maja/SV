@@ -20,7 +20,7 @@ library(taxize)
 
 # load google sheet
 url <- 'https://docs.google.com/spreadsheets/d/1Z2P6dAcoU0-Kh0UqVgIAeongX5IJohuMUKG1PyrNraU/edit?gid=84578656#gid=84578656'
-sp_data <- read.csv(text=gsheet2text(url, format='csv'), stringsAsFactors=FALSE)
+sp_data <- read.csv(text=gsheet2text(url, format='csv'), stringsAsFactors=FALSE) # as of april 17: 667 sp with data, 1183 left to check. the rest are "no data".
 trait.data <- sp_data[,c("species", "SV", "order")]
 trait.data$tips <- trait.data$species
 trait.data$tips <- str_replace(trait.data$species, pattern = " ", replacement = "_")
@@ -35,7 +35,7 @@ resolved_names <- (otol_names[!(is.na(otol_names$unique_name)),]
 resolved_names <- distinct(resolved_names, ott_id, .keep_all = TRUE)
 
 
-SV_data <- sp_data %>% mutate(species = str_replace(species, " ", "_"))
+SV_data <- sp_data %>% mutate(species = str_replace(species, " ", "_")) # as of april 17: 597 obs
 SV_data <- SV_data %>% mutate(species = str_replace(species, " ", "_"))
 SV_data <- SV_data %>% mutate(species = tolower(species))
 SV_data <- SV_data %>% group_by(species) 
@@ -65,23 +65,27 @@ SV_data <- SV_data %>% select("Species", "order", "SV", "presence", "genome.asse
 
 fishbase_species <- rfishbase::load_taxa()
 SV_data <- SV_data %>% left_join(fishbase_species, by = "Species")
-SV_data <- SV_data_orders %>% select("Species", "Order", "Family", "Genus", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips")
+SV_data <- SV_data %>% select("Species", "Order", "Family", "Genus", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips")
 
 
 SV_data_avg <- SV_data %>% group_by(Species) 
 SV_data_avg <- SV_data_avg %>% mutate(Species = as.character(Species), SV = as.numeric(SV))
 SV_data_avg <- SV_data_avg %>% mutate(SV = ifelse(SV == 0, NA, SV))
+
 #SV_data_avg <- SV_data_avg %>% mutate(test = !(any(SV > 0) & SV ==0))
 #SV_data_avg <- SV_data_avg %>% filter(!(any(SV > 0) & SV == 0)) 
 
 SV_data_avg <- SV_data_avg %>% mutate(SV2 = median(SV, na.rm = TRUE))
 SV_data_avg <- SV_data_avg %>% group_by(Species) %>% mutate(SV3 = ifelse(all(is.na(SV)) & presence == "absent",0,SV2))
 SV_data_avg <- SV_data_avg %>% group_by(Species) %>% mutate(presence = ifelse( presence == "absent" & any(presence == "present"), "present", presence ))
+SV_data_avg <- SV_data_avg %>% group_by(Species) %>% mutate(SV3 = ifelse( presence == "absent" & any(presence == "present"), NA, SV3 ))
+# SV_data_avg <- SV_data_avg %>% mutate(SV = ifelse(present == "present" & is.na(SV), "present", SV))
+#SV_data_avg <- SV_data_avg %>% rename("SV" = "SV3")
 
 SV_data_avg <- SV_data_avg %>% select("Species", "Order", "Family", "Genus", "SV3", "presence", "genome.assembly", "ott_id", "flags", "tips") 
 SV_data_avg <- SV_data_avg %>% distinct() 
 SV_data_avg <- SV_data_avg %>% ungroup()
-SV_data_avg <- SV_data_avg %>% mutate(tips = str_replace(tips, " ", "_"))
+SV_data_avg <- SV_data_avg %>% mutate(tips = str_replace(tips, " ", "_")) # as of april 17: 478 species
 
 # duplicates because of diff orders for same species: 
 # undefined_orders <- SV_data_avg %>% group_by(Species) %>% filter(n_distinct(order) > 1)
@@ -89,10 +93,12 @@ SV_data_avg <- SV_data_avg %>% mutate(tips = str_replace(tips, " ", "_"))
 # solved
 
 # check for other duplicates in species names:
+
+SV_data_avg <- SV_data_avg %>% filter(!duplicated(SV_data_avg$Species))
 SV_duplicates <- SV_data_avg[duplicated(SV_data_avg$Species),]
 View(SV_duplicates)
 
-write.csv(SV_data_avg, "/Users/user2/Desktop/SV_project/SV_data_avg.csv") 
+write.csv(SV_data_avg, "/Users/juliamaja/Desktop/SV/SV_data_avg.csv") 
 
 
 
