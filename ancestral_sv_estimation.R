@@ -26,6 +26,7 @@ standard_tests[[3]] <- ace(trait.vector_n, trpy_n, model = "ARD", type = "discre
 
 # corHMM ------------------------------------------------------------------
 library("corHMM")
+library(AICcmodavg)
 
 # #430 species
 # SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
@@ -48,7 +49,7 @@ library("corHMM")
 # #242 species
   
 trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
-
+tr <- trpy_n
 ER_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ER", node.states = "marginal")
 SYM_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "SYM", node.states = "marginal")
 ARD_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ARD", node.states = "marginal")
@@ -67,6 +68,47 @@ saveRDS(model_results_list, "SV_reconstruction_results.RDS")
 presence <- SV_data_avg$presence
 names(presence) <- SV_data_avg$tips
 fitER <- ace(presence, trpy_n,model="ER",type="discrete")
+
+#### COMPARING MODELS:
+
+# Manually extract values from corHMM model objects
+logLik_vals <- sapply(model_results_list, function(x) x$loglik)
+AICc_vals <- sapply(model_results_list, function(x) x$AICc)
+K_vals <- sapply(model_results_list, function(x) x$solution)  # parameter estimates
+
+# Count number of estimated parameters (K)
+K_vals <- sapply(model_results_list, function(x) {
+  sum(!is.na(c(x$rate.cat, x$solution))) + 2  # "+2" for default intercept-like adjustment
+})
+
+# Calculate delta AICc
+delta_AICc <- AICc_vals - min(AICc_vals)
+
+# Calculate AICc weights: the proportion of the total amount of predictive power provided by the full set of models contained in the model being assessed. 
+# In this case, the top model contains 95% of the total explanation that can be found in the full set of models.
+AIC_weights <- exp(-0.5 * delta_AICc)
+AIC_weights <- AIC_weights / sum(AIC_weights)
+
+# Cumulative weights
+cum_weights <- cumsum(sort(AIC_weights, decreasing = TRUE))
+# Re-order to match model order after sorting by AICc
+sorted_indices <- order(AICc_vals)
+
+# Final table
+aic_table <- data.frame(
+  Model = model_names[sorted_indices],
+  #K = K_vals[sorted_indices],
+  AICc = round(AICc_vals[sorted_indices], 2),
+  #Delta_AICc = round(delta_AICc[sorted_indices], 2),
+  AICcWt = round(AIC_weights[sorted_indices], 3),
+  #Cum.Wt = round(cumsum(AIC_weights[sorted_indices]), 3),
+  LL = round(logLik_vals[sorted_indices], 2)
+)
+
+print(aic_table, row.names = FALSE)
+
+
+
 
 
 # "total garbage" test:
