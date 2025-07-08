@@ -23,7 +23,8 @@ url <- 'https://docs.google.com/spreadsheets/d/1Z2P6dAcoU0-Kh0UqVgIAeongX5IJohuM
 sp_data <- read.csv(text=gsheet2text(url, format='csv'), stringsAsFactors=FALSE) # as of april 17: 667 sp with data, 1183 left to check. the rest are "no data".
 trait.data <- sp_data[,c("species", "SV", "order")]
 trait.data$tips <- trait.data$species
-trait.data$tips <- str_replace(trait.data$species, pattern = " ", replacement = "_")
+#trait.data$tips <- str_replace(trait.data$species, pattern = " ", replacement = "_") 
+trait.data <- trait.data %>% mutate(species = str_replace(species, " ", "_"))
 
 # resolve spcies names with open tree of life
 otol_names <- tnrs_match_names(names = trait.data$species, context_name = "Vertebrates", do_approximate_matching = TRUE) 
@@ -32,13 +33,16 @@ resolved_names <- (otol_names[!(is.na(otol_names$unique_name)),]
                    %>% mutate(species = str_replace(species, " ", "_"))
                    %>% select(species, unique_name, "ott_id", "flags")
 )
-resolved_names <- distinct(resolved_names, ott_id, .keep_all = TRUE)
+#resolved_names <- distinct(resolved_names, ott_id, .keep_all = TRUE)
 
 
 SV_data <- sp_data %>% mutate(species = str_replace(species, " ", "_")) # as of april 17: 597 obs. as of june 6: 773 obs as of june 19, 2456 obs
 SV_data <- SV_data %>% mutate(species = str_replace(species, " ", "_"))
 SV_data <- SV_data %>% mutate(species = tolower(species))
-SV_data <- SV_data %>% group_by(species) 
+SV_data <- SV_data %>% left_join(resolved_names, by = "species")  
+SV_data <- SV_data %>% mutate(tips = unique_name)
+
+SV_data <- SV_data %>% group_by(unique_name) 
 SV_data <- SV_data %>% mutate(
   genome.assembly = if_else(
     genome.assembly == '' & any(genome.assembly == 'y'),  
@@ -47,15 +51,19 @@ SV_data <- SV_data %>% mutate(
   )
 ) 
 SV_data <- SV_data %>% ungroup()
-SV_data <- SV_data %>% left_join(resolved_names, by = "species")  
-SV_data <- SV_data %>% mutate(tips = unique_name)
+
 SV_data <- SV_data %>% rename("Source" = "source")
 #SV_data <- SV_data %>% filter(Source != "") 
 SV_data <- SV_data %>% filter(SV != "no data") 
 SV_data <- SV_data %>% filter(SV != "m") 
 SV_data <- SV_data %>% mutate(SV = str_replace(SV, "2", "1"), str_replace(SV, "0.5", "1"), str_replace(SV, "2.5", "2"), str_replace(SV, "3.5", "4")) 
+
+SV_data_3 <- SV_data %>% filter(is.na(unique_name)) %>% filter(!grepl("sp.", species)) %>% filter(species !="")   # to see which species names are not in OTOL # 11 cases as of july 7th
+SV_data_2 <- SV_data %>% filter(unique_name !="")
+SV_data_4 <- anti_join(SV_data, SV_data_2)
+
 SV_data <- SV_data %>% filter(unique_name !="")
-SV_data <- SV_data %>% select("species", "unique_name", "order", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure")
+SV_data <- SV_data %>% select("species", "unique_name", "order", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure", "image.files", "description", "Source")
 
 SV_data <- SV_data %>% 
   filter(!(is.na(SV) | SV == "") | !(is.na(presence) | presence == ""))
@@ -63,14 +71,46 @@ SV_data <- SV_data %>%
 SV_data <- SV_data %>% mutate(presence = ifelse(SV == "0", "absent", "present"))
 SV_data <- SV_data %>% mutate(SV = ifelse(SV == "present", NA, SV))
 SV_data <- SV_data %>% rename("Species" = "unique_name")
-SV_data <- SV_data %>% select("Species", "order", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure")  
+SV_data <- SV_data %>% select("Species", "order", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure", "image.files", "description", "Source")  
 
 # add order, family, genus to the data
 # SV_data_orders_ncbi <- SV_data %>% mutate(order = ifelse(is.na(order), purrr::map_chr(unique_name, get_order), order))
 
+# fishbase_species <- rfishbase::load_taxa()
+# SV_data <- SV_data %>% left_join(fishbase_species, by = "Species")
+# SV_data <- SV_data %>% select("Species", "Order", "Family", "Genus", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure", "image.files", "description", "Source")
+
+get_rank <- function(tax_info, rank_name) {
+  lineage <- tax_lineage(tax_info)[[1]]
+  values <- lineage$name[lineage$rank == rank_name]
+  if (length(values) == 0) return(NA_character_) else return(values[1])
+}
+
+# Fill in taxonomy
+df <- SV_data %>%
+  rowwise() %>%
+  mutate(
+    tax_info = list(taxonomy_taxon_info(ott_id, include_lineage = TRUE)),
+    order = get_rank(tax_info, "order"),
+    family = get_rank(tax_info, "family"),
+    genus = get_rank(tax_info, "genus")
+  ) %>%
+  ungroup() %>%
+  select(-tax_info)
+SV_data <- df %>% rename("Order" = "order") %>% rename("Genus" = "genus") %>% rename("Family" = "family")
+SV_data <- SV_data %>% select("Species", "Order", "Family", "Genus", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure", "image.files", "description", "Source")
+
+missing_tax <- SV_data %>% filter(is.na(Genus) | is.na(Family) | is.na(Order)) # check where there are problems # 19 
+# fill in the gaps with FishBase
 fishbase_species <- rfishbase::load_taxa()
-SV_data <- SV_data %>% left_join(fishbase_species, by = "Species")
-SV_data <- SV_data %>% select("Species", "Order", "Family", "Genus", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure")
+missing_tax <- missing_tax %>% left_join(fishbase_species, by = "Species")
+missing_tax <- missing_tax %>% rename("Order" = "Order.y") %>% rename("Genus" = "Genus.y") %>% rename("Family" = "Family.y")
+missing_tax <- missing_tax %>% select("Species", "Order", "Family", "Genus", "SV", "presence", "genome.assembly", "ott_id", "flags", "tips", "SV.not.in.figure", "image.files", "description", "Source")
+
+SV_data <- SV_data %>% filter(!is.na(Genus)) %>% filter(!is.na(Family)) %>% filter(!is.na(Order)) #filter out rows with missing taxonomy values 
+SV_data <- SV_data %>% bind_rows(missing_tax) # add the FishBase correced rows
+SV_data <- SV_data %>% filter(!is.na(Genus)) %>% filter(!is.na(Family)) %>% filter(!is.na(Order)) #remove any rows where FishBase couldn't solve the msising value
+
 write.csv(SV_data, "/Users/juliamaja/Desktop/SV/SV_data.csv") 
 
 SV_data_avg <- SV_data %>% group_by(Species)

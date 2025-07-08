@@ -47,12 +47,15 @@ library(AICcmodavg)
 # row.names(SV_data_avg) <- SV_data_avg$tips
 # SV_data_avg <-SV_data_avg[!is.na(SV_data_avg$presence), ]
 # #242 species
-  
+
 trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
 tr <- trpy_n
 ER_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ER", node.states = "marginal")
 SYM_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "SYM", node.states = "marginal")
 ARD_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ARD", node.states = "marginal")
+
+custom.matrix <- matrix(c(NA,1,NA,NA),  nrow = 2 )
+Loss_only_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ER", node.states = "marginal", rate.mat = custom.matrix, root.p = c(0, 1))
 # ARD_model_2HR <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 2, model = "ARD", node.states = "marginal")
 
 #"If analyzing a binary or multistate character, the order of root.p is the same order as the traits – e.g., for states 1, 2, 3, a root.p=c(0,1,0) would fix the root to be in state 2"

@@ -61,8 +61,8 @@ file_name <- "SV_reconstruction_results_plot"
 model_results <- all_model_results[[3]]
 model_name <- "ARD"
 
-# model_results <- all_model_results$bridge_only
-# model_name <- "bridge_only"
+model_results <- Loss_only_model
+model_name <- Loss_only_model
 
 # Section 1: Plotting ancestral reconstruction from corHMM model  --------
 

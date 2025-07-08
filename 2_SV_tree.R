@@ -25,7 +25,7 @@ library(gsheet)
 library(ape)
 library(patchwork)
 library(ggpubr)
-library(xlsx) # problem
+#library(xlsx) # problem
 library(geiger)
 library(here)
 library(ggtree)
@@ -103,7 +103,7 @@ tr <- readRDS("/Users/juliamaja/Desktop/SV/julia_fish_tree.rds")
 SV_data_avg <- SV_data_avg[SV_data_avg$tips %in% tr$tip.label,] #%>% mutate( Species = str_replace(Species, "(species in domain Eukaryota)", "")) %>% mutate(Species = str_replace(Species, "_", "")) %>% mutate(tips = Species)
 tr <- keep.tip(tr, tip = SV_data_avg$tips)
 ggtree(tr, layout = "circular") + geom_tiplab(size = 1.5)
-
+# 608 species becomes 449 in SV_data_avg
 
 saveRDS(tr, "/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
 
@@ -158,31 +158,31 @@ sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes
 sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
 sv.plot  
 
-# SV presence/ absence + order
-SV_data <- SV_data_avg
-tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
-tr <- multi2di(tr)
-tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
-ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
-rainbow_pal <- colorRampPalette(rainbow(7))(100)
-set.seed(12)
-random_colors <- distinctColorPalette(99)
-sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order")] 
-sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = random_colors) 
-sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = random_colors)
-sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
-
-# Compute Order label positions (insert after all tiles and before labeling)
-tip_data <- sv.plot$data[1:length(tr$tip.label), ]
-order_labels <- tip_data %>% group_by(Order) %>% summarize(x = mean(x + 20), y = median(y), .groups = "drop")
-sv.plot <- sv.plot + geom_text(data = order_labels, aes(x = x, y = y, label = Order), size = 3, hjust = 0)
-sv.plot <- sv.plot + theme(legend.position = "none")
-sv.plot 
+# # SV presence/ absence + order
+# SV_data <- SV_data_avg
+# tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
+# tr <- multi2di(tr)
+# tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
+# ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
+# rainbow_pal <- colorRampPalette(rainbow(7))(100)
+# set.seed(12)
+# random_colors <- distinctColorPalette(99)
+# sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order")] 
+# sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = random_colors) 
+# sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = random_colors)
+# sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
+# 
+# # Compute Order label positions (insert after all tiles and before labeling)
+# tip_data <- sv.plot$data[1:length(tr$tip.label), ]
+# order_labels <- tip_data %>% group_by(Order) %>% summarize(x = mean(x + 20), y = median(y), .groups = "drop")
+# sv.plot <- sv.plot + geom_text(data = order_labels, aes(x = x, y = y, label = Order), size = 3, hjust = 0)
+# sv.plot <- sv.plot + theme(legend.position = "none")
+# sv.plot 
 
 
 # SV presence/ absence + order  (genome assembly subset)
 SV_data <- SV_data_avg %>% filter(genome.assembly == "y") 
-tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
+tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id")
 tr <- multi2di(tr)
 tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
 ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
