@@ -49,6 +49,7 @@ library(AICcmodavg)
 # #242 species
 
 trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
+trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/tr_tree_calibrated_8_25.rds") 
 tr <- trpy_n
 ER_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ER", node.states = "marginal")
 SYM_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "SYM", node.states = "marginal")

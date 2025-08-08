@@ -34,6 +34,7 @@ resolved_names <- (otol_names[!(is.na(otol_names$unique_name)),]
                    %>% select(species, unique_name, "ott_id", "flags")
 )
 #resolved_names <- distinct(resolved_names, ott_id, .keep_all = TRUE)
+saveRDS(resolved_names, "resolved_names.rds")
 
 
 SV_data <- sp_data %>% mutate(species = str_replace(species, " ", "_")) # as of april 17: 597 obs. as of june 6: 773 obs as of june 19, 2456 obs
@@ -86,7 +87,7 @@ get_rank <- function(tax_info, rank_name) {
   if (length(values) == 0) return(NA_character_) else return(values[1])
 }
 
-# Fill in taxonomy
+# fill in taxonomy
 df <- SV_data %>%
   rowwise() %>%
   mutate(
@@ -153,9 +154,9 @@ View(SV_duplicates)
 write.csv(SV_data_avg, "/Users/juliamaja/Desktop/SV/SV_data_avg.csv") 
 
 # some stats:
-num_w_genome <- SV_data_avg %>% filter(genome.assembly == "y") %>% count() #171
-absent_w_genome <- SV_data_avg %>% filter(genome.assembly == "y" & presence == "absent") %>% count() #42
-false_absent_w_genome <- SV_data_avg %>% filter(genome.assembly == "y" & presence == "absent" & SV.not.in.figure == "y") %>%  count() #13
+num_w_genome <- SV_data_avg %>% filter(genome.assembly == "y") %>% count() #171 #205 as of july 18 # 171 as of july 23 ? but I didn't change anything
+absent_w_genome <- SV_data_avg %>% filter(genome.assembly == "y" & presence == "absent") %>% count() #42 #50
+false_absent_w_genome <- SV_data_avg %>% filter(genome.assembly == "y" & presence == "absent" & SV.not.in.figure == "y") %>%  count() #13 #11
 
 library(tidyr)
 # Count species per order in your dataset
@@ -185,4 +186,13 @@ ggplot(order_coverage, aes(x = n_total, y = n_sampled, label = Order)) +
   ) +
   theme_minimal()
 
+sp_w_gen <- SV_data_avg %>% filter(genome.assembly == "y")
+sp_w_gen <- sp_w_gen %>% select(Species)
+sp_w_gen <- sp_w_gen %>%
+  mutate(Species = str_replace(Species, " ", "_"))
+write.csv(sp_w_gen, "/Users/juliamaja/Desktop/species_to_keep.csv")
+
+sp_w_genomes_205 <- read.csv("/Users/juliamaja/Desktop/species_to_keep.csv")
+
+#mystery_sp <- anti_join(sp_w_genomes_205, sp_w_gen)
 

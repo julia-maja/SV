@@ -33,6 +33,7 @@ library(randomcoloR)
 library(ggnewscale)
 library(svglite)
 library(Polychrome)
+library(rphylopic)
 
 
 
@@ -181,38 +182,40 @@ sv.plot
 
 
 # SV presence/ absence + order  (genome assembly subset)
-SV_data <- SV_data_avg %>% filter(genome.assembly == "y") 
+SV_data <- SV_data_avg #%>% filter(genome.assembly == "y") 
+SV_data <- SV_data %>% filter(!is.na(presence)) %>% mutate( tips = str_replace(Species, "(species in domain Eukaryota)", "")) 
 tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id")
 tr <- multi2di(tr)
 tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
 ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
 sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order")] 
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[!is.na(sv.plot$data$presence) & seq_len(nrow(sv.plot$data)) <= length(tr$tip.label), ], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = pres_abs) 
-sv.plot <- sv.plot + new_scale_fill() + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = P50)
+sv.plot <- sv.plot + new_scale_fill() + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = P60)
 sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
 sv.plot
 
 # presence/ absence of whole set with and without genome assembly
 SV_data <- SV_data_avg 
+#SV_data <- SV_data %>% filter(!is.na(presence)) %>% mutate( tips = str_replace(Species, "(species in domain Eukaryota)", "")) 
 tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
 tr <- multi2di(tr)
 tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
 ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 0.8)
-SV_data <- SV_data_avg
-sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order")] 
+sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order", "uuid")] 
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[!is.na(sv.plot$data$presence) & seq_len(nrow(sv.plot$data)) <= length(tr$tip.label), ], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = pres_abs) 
 sv.plot <- sv.plot + new_scale_fill() + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = P60)
 sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1)
 sv.plot
+# 
+# # Compute Order label positions (insert after all tiles and before labeling)
+# tip_data <- sv.plot$data[1:length(tr$tip.label), ]
+# order_labels <- tip_data %>% group_by(Order) %>% summarize(x = mean(x + 20), y = median(y), .groups = "drop")
+# sv.plot <- sv.plot + geom_text(data = order_labels, aes(x = x, y = y, label = Order), size = 3, hjust = 0)
+# sv.plot <- sv.plot + theme(legend.position = "none")
+# sv.plot 
 
-# Compute Order label positions (insert after all tiles and before labeling)
-tip_data <- sv.plot$data[1:length(tr$tip.label), ]
-order_labels <- tip_data %>% group_by(Order) %>% summarize(x = mean(x + 20), y = median(y), .groups = "drop")
-sv.plot <- sv.plot + geom_text(data = order_labels, aes(x = x, y = y, label = Order), size = 3, hjust = 0)
-sv.plot <- sv.plot + theme(legend.position = "none")
-sv.plot 
 
-
+# adding phylopic silhouettes to orders
 
 
 
@@ -230,6 +233,20 @@ sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
 sv.plot
 file_name <- "/Users/juliamaja/Desktop/SV/plots/sv_complexity.svg"
 ggsave(file_name, sv.plot, device = "svg")
+
+
+# tree building for SV complexity + orders:
+sv_palette <- c("black", "transparent")
+SV_data <- SV_data_avg %>% filter(!is.na(SV3)) %>% mutate( Species = str_replace(Species, "(species in domain Eukaryota)", "")) %>% mutate(Species = str_replace(Species, "_", "")) %>% mutate(tips = Species)
+tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
+tr <- multi2di(tr)
+tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
+ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
+sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "SV3", "presence", "genome.assembly", "Order")] 
+sv.plot <- sv.plot + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x, fill = SV3), inherit.aes = FALSE, color = "transparent") + scale_fill_gradient(name = "SV complexiity", low = "tomato", high = "palegreen", na.value = NA)
+sv.plot <- sv.plot + new_scale_fill() + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = P60)
+sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1)
+sv.plot
 
 
 

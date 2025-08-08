@@ -5,7 +5,7 @@
 "4","Apistogramma trifasciata","Cichliformes","Cichlidae","Apistogramma",0,"absent","",3636304,"","Apistogramma_trifasciata",""
 "5","Aphyocharax anisitsi","Characiformes","Characidae","Aphyocharax",0,"absent","",852942,"","Aphyocharax_anisitsi","y"
 "6","Biotoecus opercularis","Cichliformes","Cichlidae","Biotoecus",0,"absent","",3636363,"","Biotoecus_opercularis",""
-"7","Danio rerio","Cypriniformes","Cyprinidae","Danio",0,"absent","",1005914,"","Danio_rerio",""
+"7","Danio rerio","Cypriniformes","Cyprinidae","Danio",0,"absent","y",1005914,"","Danio_rerio",""
 "8","Carassius auratus","Cypriniformes","Cyprinidae","Carassius",1,"present","y",1005907,"","Carassius_auratus",""
 "9","Carassius carassius","Cypriniformes","Cyprinidae","Carassius",0,"absent","",1010092,"","Carassius_carassius",""
 "10","Channa gachua","Anabantiformes","Channidae","Channa",0,"absent","",589530,"","Channa_gachua",""
