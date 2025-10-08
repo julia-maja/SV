@@ -61,8 +61,8 @@ file_name <- "SV_reconstruction_results_plot"
 model_results <- all_model_results[[3]]
 model_name <- "ARD"
 
-model_results <- Loss_only_model
-model_name <- Loss_only_model
+# model_results <- Loss_only_model
+# model_name <- Loss_only_model
 
 # Section 1: Plotting ancestral reconstruction from corHMM model  --------
 
@@ -76,9 +76,10 @@ phylo_tree <- model_results$phy
 lik.anc$node <- c(1:length(phylo_tree$tip.label), (length(phylo_tree$tip.label) + 1):(phylo_tree$Nnode + length(phylo_tree$tip.label)))
 
 #plot the ancestral reconstruction, displaying each of the three trait states (cathemeral, diurnal, nocturnal)
-ancestral_plot <- ggtree(phylo_tree, layout = "circular") %<+% lik.anc + aes(color = present) + geom_tippoint(aes(color = present), shape = 16, size = 1.5) + scale_color_distiller(name = "SV presence", palette = "RdYlGn", direction = 1)  + geom_tiplab(color = "black", size = 1.5, offset = 0.5) + geom_tippoint(aes(color = present), shape = 16, size = 1.5)
+ancestral_plot <- ggtree(phylo_tree, layout = "circular") %<+% lik.anc + aes(color = present) + geom_tippoint(aes(color = present), shape = 16, size = 1) + scale_color_distiller(name = "SV presence", palette = "RdYlGn", direction = 1)  + geom_tiplab(color = "black", size = 1.5, offset = 0.5) + geom_tippoint(aes(color = present), shape = 16, size = 1.5)
 #ancestral_plot <- ancestral_plot + geom_tiplab(hjust = -0.2, size = 1.5)
 ancestral_plot
+
 
 ggsave("/Users/juliamaja/Desktop/SV/ARD_reconstruction.svg", ancestral_plot, device = "svg")
 

@@ -114,7 +114,7 @@ saveRDS(tr, "/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
 # plotting ----------------------------------------------------------------
 
 source("/Users/juliamaja/Desktop/SV/SV_functions.R")
-SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
+SV_data_avg <- readRDS("/Users/juliamaja/Desktop/SV/SV_data_avg.RDS")
 
 resolved_names <- SV_data_avg
 
@@ -182,7 +182,7 @@ sv.plot
 
 
 # SV presence/ absence + order  (genome assembly subset)
-SV_data <- SV_data_avg #%>% filter(genome.assembly == "y") 
+SV_data <- SV_data_avg %>% filter(genome.assembly == "y") 
 SV_data <- SV_data %>% filter(!is.na(presence)) %>% mutate( tips = str_replace(Species, "(species in domain Eukaryota)", "")) 
 tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id")
 tr <- multi2di(tr)
@@ -191,20 +191,20 @@ ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
 sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order")] 
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[!is.na(sv.plot$data$presence) & seq_len(nrow(sv.plot$data)) <= length(tr$tip.label), ], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = pres_abs) 
 sv.plot <- sv.plot + new_scale_fill() + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = P60)
-sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5)
+sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1.5) 
 sv.plot
 
 # presence/ absence of whole set with and without genome assembly
 SV_data <- SV_data_avg 
-#SV_data <- SV_data %>% filter(!is.na(presence)) %>% mutate( tips = str_replace(Species, "(species in domain Eukaryota)", "")) 
+SV_data <- SV_data %>% filter(!is.na(presence)) %>% mutate( tips = str_replace(Species, "(species in domain Eukaryota)", "")) 
 tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
 tr <- multi2di(tr)
 tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
 ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 0.8)
-sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order", "uuid")] 
+sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order")] 
 sv.plot <- sv.plot + geom_tile(data = sv.plot$data[!is.na(sv.plot$data$presence) & seq_len(nrow(sv.plot$data)) <= length(tr$tip.label), ], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = pres_abs) 
 sv.plot <- sv.plot + new_scale_fill() + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = P60)
-sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1)
+sv.plot <- sv.plot + geom_tiplab(aes(color = ifelse(genome.assembly == "y", "highlight", "default")), hjust = -0.2, size = 1) + scale_color_manual(values = c("highlight" = "blue", "default" = "black"))
 sv.plot
 # 
 # # Compute Order label positions (insert after all tiles and before labeling)
@@ -280,6 +280,30 @@ order_tree <- sv.plot + geom_cladelab(node = nodes_df$node_number,
                                       barcolour = nodes_df$colour
 )
 order_tree
+
+
+
+# adding orders to time calibrated tree -----------------------------------
+
+# trying to add orders to the time calibrated tree
+tr <- tol_induced_subtree(ott_ids = SV_data$ott_id[SV_data$flags %in% c("sibling_higher", "")], label_format = "id") 
+tr <- multi2di(tr)
+tr$tip.label <- SV_data$tips[match(tr$tip.label, paste("ott", SV_data$ott_id, sep = ""))]
+
+
+trpy_n$tip.label <- tr$tip.label
+tr <- trpy_n
+SV_data <- SV_data_avg 
+SV_data <- SV_data %>% filter(!is.na(presence)) %>% mutate( tips = str_replace(Species, "(species in domain Eukaryota)", "")) 
+
+ggtree(tr, layout = "circular") + geom_tiplab(color = "black", size = 0.8)
+sv.plot <- ggtree(tr, layout = "circular") %<+% SV_data[, c("tips", "presence", "genome.assembly", "Order")] 
+sv.plot <- sv.plot + geom_tile(data = sv.plot$data[!is.na(sv.plot$data$presence) & seq_len(nrow(sv.plot$data)) <= length(tr$tip.label), ], aes(y=y, x=x, fill = presence), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = pres_abs) 
+sv.plot <- sv.plot + new_scale_fill() + geom_tile(data = sv.plot$data[1:length(tr$tip.label),], aes(y=y, x=x + 15, fill = Order), inherit.aes = FALSE, color = "transparent") + scale_fill_manual(values = P60)
+sv.plot <- sv.plot + geom_tiplab(hjust = -0.2, size = 1)
+sv.plot
+
+
 
 
 SV_data_avg <- SV_data_avg %>% filter(genome.assembly == "y")
@@ -399,3 +423,35 @@ lambda <- lambda_est$lambda
 ESS <- n / (1 + (n - 1) * lambda)
 ESS
 
+
+
+# order labels ------------------------------------------------------------
+library(phytools)
+
+findMRCANode2 <- function(phylo = tr, trait.data = trait.data, taxonomic_level_col = 3, taxonomic_level_name = "Araneae"){
+  nodes_list <- list()
+  trait.data <- trait.data %>% group_by_at(taxonomic_level_col) %>% filter(n()>1)
+  trait.data.filtered <- trait.data[trait.data[,taxonomic_level_col] == taxonomic_level_name, ]
+  tip_vector <- as.vector(trait.data.filtered[, "tips"])
+  #find the node number of the MRCA of these species
+  MRCA_node <- findMRCA(phylo, tip_vector$tips)
+  node_df <- data.frame(clade_name = taxonomic_level_name, node_number = MRCA_node)
+  return(node_df)
+}
+
+nodes_df <- findMRCANode2(tr, SV_data_avg, 3, "Gobiiformes")
+
+#label major families
+orders <- SV_data_avg %>% count(Order) %>% filter(n>1) #filter for clades with more than one species or it can't find the MRCA
+
+#Use a for loop to find the nodes for all the families
+nodes_list <- list()
+for(i in orders$Order){
+  node_df <- findMRCANode2(phylo = tr, trait.data = SV_data_avg, taxonomic_level_col = 3, taxonomic_level_name = i)
+  nodes_list[[i]] <- node_df
+  nodes_df <- do.call(rbind, nodes_list)
+}
+
+diel.plot <- ggtree(tr, layout = "circular")
+diel.plot <- diel.plot + geom_cladelab(node = nodes_df$node_number, label = nodes_df$clade_name, offset=1.5, offset.text=2, barsize=2, fontsize=3, barcolour = "grey50", textcolour = "black")
+diel.plot

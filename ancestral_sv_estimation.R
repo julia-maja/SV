@@ -2,27 +2,29 @@
 
 SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
 
+# filter for genome-only species:
+SV_data_avg <- SV_data_avg %>% filter(genome.assembly == "y")
 
 # ace ---------------------------------------------------------------------
-trait.vector_n <- SV_data_avg$presence
-
-names(trait.vector_n) <- SV_data_avg$tips
-trait.vector_n <- trait.vector_n[trait.vector_n %in% c("present", "absent")]
-trait.vector_n <- trait.vector_n[match(tr$tip.label, names(trait.vector_n))]
-#trait.vector_n <- na.omit(trait.vector_n) 
-trpy_n <- keep.tip(tr, tip = names(trait.vector_n))
-trait.vector_n <- trait.vector_n[match(trpy_n$tip.label, names(trait.vector_n))]
- # Removes NA values
-trpy_n$edge.length[trpy_n$edge.length == 0] <- 0.001 
-trait.data_n <- trait.data[trait.data$species %in% trpy_n$tip.label,]
-
-standard_tests <- list()
-# Equal rates, symmetric rates (same as ER), and All rates different
-standard_tests[[1]] <- ace(trait.vector_n, trpy_n, model = "ER", type = "discrete")
-standard_tests[[2]] <- ace(trait.vector_n, trpy_n, model = "SYM", type = "discrete")
-standard_tests[[3]] <- ace(trait.vector_n, trpy_n, model = "ARD", type = "discrete")
-
-
+# trait.vector_n <- SV_data_avg$presence
+# 
+# names(trait.vector_n) <- SV_data_avg$tips
+# trait.vector_n <- trait.vector_n[trait.vector_n %in% c("present", "absent")]
+# trait.vector_n <- trait.vector_n[match(tr$tip.label, names(trait.vector_n))]
+# #trait.vector_n <- na.omit(trait.vector_n) 
+# trpy_n <- keep.tip(tr, tip = names(trait.vector_n))
+# trait.vector_n <- trait.vector_n[match(trpy_n$tip.label, names(trait.vector_n))]
+#  # Removes NA values
+# trpy_n$edge.length[trpy_n$edge.length == 0] <- 0.001 
+# trait.data_n <- trait.data[trait.data$species %in% trpy_n$tip.label,]
+# 
+# standard_tests <- list()
+# # Equal rates, symmetric rates (same as ER), and All rates different
+# standard_tests[[1]] <- ace(trait.vector_n, trpy_n, model = "ER", type = "discrete")
+# standard_tests[[2]] <- ace(trait.vector_n, trpy_n, model = "SYM", type = "discrete")
+# standard_tests[[3]] <- ace(trait.vector_n, trpy_n, model = "ARD", type = "discrete")
+# 
+# 
 
 # corHMM ------------------------------------------------------------------
 library("corHMM")
@@ -48,8 +50,86 @@ library(AICcmodavg)
 # SV_data_avg <-SV_data_avg[!is.na(SV_data_avg$presence), ]
 # #242 species
 
-trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
-trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/tr_tree_calibrated_8_25.rds") 
+# trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
+trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/tr_tree_calibrated_9_9.rds") # my tree
+
+# removing jawless fish
+trpy_n <- drop.tip(trpy_n, c("Eptatretus_atami", "Myxine_glutinosa"))
+
+# filter species with possible false absents
+SV_data_avg <- SV_data_avg %>% filter(is.na(SV.not.in.figure))
+trpy_n <- drop.tip(tr, setdiff(tr$tip.label, SV_data_avg$tips))
+
+# troubleshooting ---------------------------------------------------------
+# trpy_n_0 <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds") # subset of max's tree
+# trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/tr_tree_calibrated_8_25.rds") # my tree
+# trpy_n <- julia_fish_tree # max's tree with all my species (old data)
+# 
+# # trpy_n <- multi2di(trpy_n) # force tree to be binary - doesn't solve
+# # SV_data_avg <- SV_data_avg[SV_data_avg$tips %in% trpy_n$tip.label, ] # get rid of tip labels in data that are not in tree - doesn't solve
+# ggtree(trpy_n, layout = "circular") + geom_tiplab(color = "black", size = 1.5)
+# 
+# is.binary.tree(tryp_n) # my tree is not binary
+# # identify polytomous nodes
+# node_table <- table(trpy_n$edge[, 1])
+# polytomy_nodes <- as.numeric(names(node_table[node_table > 2]))
+# # create ggtree plot
+# p <- ggtree(trpy_n, layout = "circular")
+# # add tip labels and node labels only for polytomies
+# p +
+#   geom_tiplab(color = "black", size = 1.5) +
+#   # add red dots at polytomous nodes
+#   geom_point2(
+#     data = function(x) subset(x, node %in% polytomy_nodes),
+#     aes(subset = node %in% polytomy_nodes),
+#     color = "red", size = 0.5
+#   ) +
+#   # optionally also label those nodes
+#   geom_text2(
+#     data = function(x) subset(x, node %in% polytomy_nodes),
+#     aes(label = node),
+#     hjust = -0.2, size = 2.5, color = "red"
+#   )
+# # trpy_n <- multi2di(trpy_n) # force tree to be binary - doesn't solve
+# # re-making the tree to be binary in the previous script also didn't resolve the problem
+# 
+# # > any(is.na(trpy_n$tip.label))
+# # [1] TRUE
+# # > any(is.na(trpy_n_0$tip.label))
+# # [1] FALSE
+# # > which(is.na(trpy_n$tip.label))
+# # [1] 377
+# # > trpy_n$tip.label[377]
+# # [1] NA
+# 
+# na_value <- as.numeric(which(is.na(trpy_n$tip.label)))
+# p <- ggtree(trpy_n, layout = "circular")
+# # add tip labels and node labels only for polytomies
+# p +
+#   geom_tiplab(color = "black", size = 1.5) +
+#   # add red dots at polytomous nodes
+#   geom_point2(
+#     data = function(x) subset(x, node %in% na_value),
+#     aes(subset = node %in% na_value),
+#     color = "red", size = 0.5
+#   ) +
+#   # optionally also label those nodes
+#   geom_text2(
+#     data = function(x) subset(x, node %in% na_value),
+#     aes(label = node),
+#     hjust = -0.2, size = 2.5, color = "red"
+#   )
+# 
+# # the missing fish:
+# # > "Diplodus_sargus" %in% trpy_n$tip.label
+# # [1] FALSE
+# # I added the missing fish to the tree manually, and this solved the problem
+# continuing --------------------------------------------------------------
+
+# drop tips that aren't in my dataset
+tips_to_drop <- setdiff(trpy_n$tip.label, SV_data_avg$tips)
+trpy_n <- drop.tip(trpy_n, tips_to_drop)
+
 tr <- trpy_n
 ER_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ER", node.states = "marginal")
 SYM_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "SYM", node.states = "marginal")
