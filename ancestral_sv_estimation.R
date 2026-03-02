@@ -5,26 +5,83 @@ SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
 # filter for genome-only species:
 SV_data_avg <- SV_data_avg %>% filter(genome.assembly == "y")
 
-# ace ---------------------------------------------------------------------
-# trait.vector_n <- SV_data_avg$presence
-# 
-# names(trait.vector_n) <- SV_data_avg$tips
-# trait.vector_n <- trait.vector_n[trait.vector_n %in% c("present", "absent")]
-# trait.vector_n <- trait.vector_n[match(tr$tip.label, names(trait.vector_n))]
-# #trait.vector_n <- na.omit(trait.vector_n) 
-# trpy_n <- keep.tip(tr, tip = names(trait.vector_n))
-# trait.vector_n <- trait.vector_n[match(trpy_n$tip.label, names(trait.vector_n))]
-#  # Removes NA values
-# trpy_n$edge.length[trpy_n$edge.length == 0] <- 0.001 
-# trait.data_n <- trait.data[trait.data$species %in% trpy_n$tip.label,]
-# 
-# standard_tests <- list()
-# # Equal rates, symmetric rates (same as ER), and All rates different
-# standard_tests[[1]] <- ace(trait.vector_n, trpy_n, model = "ER", type = "discrete")
-# standard_tests[[2]] <- ace(trait.vector_n, trpy_n, model = "SYM", type = "discrete")
-# standard_tests[[3]] <- ace(trait.vector_n, trpy_n, model = "ARD", type = "discrete")
-# 
-# 
+# continuous trait reconstruction ---------------------------------------------------------------------
+library(phytools)
+#ancestral reconstruction for continuous trait data: SV complexity
+
+SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
+
+# filter for genome-only species:
+# SV_data_avg <- SV_data_avg %>% filter(genome.assembly == "y")
+
+# filter out species with SV type = NA
+SV_data_avg <- SV_data_avg %>% filter(!is.na(SV3))
+
+
+# trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
+trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/tr_tree_calibrated_9_9.rds") # my tree
+
+# removing jawless fish
+trpy_n <- drop.tip(trpy_n, c("Eptatretus_atami", "Myxine_glutinosa"))
+
+# filter species with possible false absents
+#SV_data_avg <- SV_data_avg %>% filter(is.na(SV.not.in.figure))
+#trpy_n <- drop.tip(tr, setdiff(tr$tip.label, SV_data_avg$tips))
+
+# estimate ancestral states
+# re-order data to match the tree
+SV_data_avg <- SV_data_avg[match(trpy_n$tip.label, SV_data_avg$tips), ]
+SV_data_avg <- SV_data_avg %>% filter(!is.na(SV3))
+
+# Create a named vector of SV3 values
+SV3 <- SV_data_avg$SV3
+
+# prune the tree to remove species not in my dataset
+tr <- drop.tip(trpy_n, setdiff(trpy_n$tip.label, SV_data_avg$tips))
+
+# fastAnc() performs ancestral state reconstruction for a continuous trait 
+# under a Brownian motion model.
+anc_SV3 <- fastAnc(tr, SV3, vars = TRUE, CI = TRUE)
+
+# plot continuous SV reconstruction ---------------------------------------
+# apparently you don't need the results of the ancestral reconstruction 
+# to make a plot because contMap does it already
+# read in data and make the row names be the tip values
+SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv", row.names=14)
+SV_data_avg <- SV_data_avg %>% mutate(Species = str_replace(Species, " ", "_"))
+
+# re-order data to match the tree
+SV_data_avg <- SV_data_avg[match(trpy_n$tip.label, SV_data_avg$Species), ]
+#SV_data_avg <- SV_data_avg %>% filter(!is.na(SV3))
+# prune the tree to remove species not in my dataset
+
+# filter out species with SV type = NA
+SV_data_avg <- SV_data_avg %>% filter(!is.na(SV3))
+
+# subset only cichlids
+SV_data_avg <- SV_data_avg %>% filter(Family == "Cichlidae" | Order == "Anabantiformes")
+
+# trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds")
+trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/tr_tree_calibrated_9_9.rds") # my tree
+# removing jawless fish
+trpy_n <- drop.tip(trpy_n, c("Eptatretus_atami", "Myxine_glutinosa"))
+tr <- drop.tip(trpy_n, setdiff(trpy_n$tip.label, SV_data_avg$Species))
+
+SV_data_avg <- SV_data_avg %>% select(SV3)
+
+svl <- as.matrix(SV_data_avg)[,1]
+
+obj <- contMap(tr, svl, plot = FALSE)
+
+plot(obj, type="fan", lwd=1, fsize = 0.5, outline = FALSE)
+
+plot(obj, lwd=2, fsize = 0.5, outline = FALSE)
+
+phenogram(tr,svl,fsize=0.6,spread.costs=c(1,0))
+
+fancyTree(tr, type = "phenogram95", x = svl, fsize = 0.5)
+
+
 
 # corHMM ------------------------------------------------------------------
 library("corHMM")
@@ -58,7 +115,7 @@ trpy_n <- drop.tip(trpy_n, c("Eptatretus_atami", "Myxine_glutinosa"))
 
 # filter species with possible false absents
 SV_data_avg <- SV_data_avg %>% filter(is.na(SV.not.in.figure))
-trpy_n <- drop.tip(tr, setdiff(tr$tip.label, SV_data_avg$tips))
+trpy_n <- drop.tip(trpy_n, setdiff(tr$tip.label, SV_data_avg$tips))
 
 # troubleshooting ---------------------------------------------------------
 # trpy_n_0 <- readRDS("/Users/juliamaja/Desktop/SV/fish_time_tree.rds") # subset of max's tree
@@ -144,7 +201,69 @@ Loss_only_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence
 ER_set_root_present <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ER", node.states = "marginal", root.p = c(0, 1)) # (absent, present)
 ER_set_root_absent <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 1, model = "ER", node.states = "marginal", root.p = c(1, 0)) # (absent, present)
 
+# hidden rate model
+ARD_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "presence")], rate.cat = 2, model = "ARD", node.states = "marginal")
 
+
+# modeling SV complexity as a multi-state discrete variable: --------------
+SV_data_avg <- read.csv("/Users/juliamaja/Desktop/SV/SV_data_avg.csv")
+SV_data_avg$SV3 <- round(SV_data_avg$SV3) # R uses “banker’s rounding”, meaning values ending in .5 are rounded to the nearest even number
+SV_data_avg <- SV_data_avg %>% filter(!is.na(SV3))
+# filter species with possible false absents
+SV_data_avg <- SV_data_avg %>% filter(is.na(SV.not.in.figure))
+# get tree:
+trpy_n <- readRDS("/Users/juliamaja/Desktop/SV/tr_tree_calibrated_9_9.rds") # my tree
+# removing jawless fish
+trpy_n <- drop.tip(trpy_n, c("Eptatretus_atami", "Myxine_glutinosa"))
+# drop tips that aren't in my dataset
+tips_to_drop <- setdiff(trpy_n$tip.label, SV_data_avg$tips)
+trpy_n <- drop.tip(trpy_n, tips_to_drop)
+
+ER_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "SV3")], rate.cat = 1, model = "ER", node.states = "marginal")
+SYM_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "SV3")], rate.cat = 1, model = "SYM", node.states = "marginal")
+ARD_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "SV3")], rate.cat = 1, model = "ARD", node.states = "marginal")
+
+###
+# n=564
+# n1 = 184
+# n2 = 113
+# n3=34
+# n4=196
+# n5=37
+
+n=491
+n1 = 111
+n2 = 113
+n3=34
+n4=196
+n5=37
+
+lnL_garb = n1 * log(n1 / n) +
+  n2 * log(n2 / n) +
+  n3 * log(n3 / n) +
+  n4 * log(n4 / n)
+
+# constrained
+
+# row1 <- c(NA,1,0,0,0)
+# row2 <- c(1,NA,1,0,0)
+# row3 <- c(0,1,NA,1,0)
+# row4 <- c(0,0,1,NA,1)
+# row5 <- c(0,0,0,1,NA)
+custom.matrix <- cbind(row1, row2, row3, row4, row5)
+
+row1 <- c(NA,1,0,0,0)
+row2 <- c(2,NA,3,0,0)
+row3 <- c(0,4,NA,5,0)
+row4 <- c(0,0,6,NA,7)
+row5 <- c(0,0,0,8,NA)
+custom.matrix <- cbind(row1, row2, row3, row4, row5)
+
+ARD_model <- corHMM(phy = trpy_n, data = SV_data_avg[, c("tips", "SV3")], rate.cat = 1, model = "ARD", node.states = "marginal", rate.mat = custom.matrix)
+
+
+
+# results -----------------------------------------------------------------
 
 model_results_list <- list(ER_model, SYM_model, ARD_model)
 saveRDS(model_results_list, "SV_reconstruction_results.RDS")

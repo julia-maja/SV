@@ -42,11 +42,11 @@ all_model_results <- readRDS("SV_reconstruction_results.RDS")
 #separate the results by the model types we want to use (ER, SYM, ARD, bridge_only)
 #uncomment the model you want to plot
 
-# model_results <- all_model_results[[1]]
-# model_name <- "ER"
+model_results <- all_model_results[[1]]
+model_name <- "ER"
 
-# model_results <- all_model_results[[2]]
-# model_name <- "SYM"
+model_results <- all_model_results[[2]]
+model_name <- "SYM"
 
 model_results <- all_model_results[[3]]
 model_name <- "ARD"
@@ -67,6 +67,22 @@ ancestral_plot <- ggtree(phylo_tree, layout = "circular") %<+% lik.anc +
   scale_color_distiller(name = "SV presence", palette = "RdYlGn", direction = 1)  + 
   geom_tiplab(color = "black", size = 1.5, offset = 0.5) + 
   geom_tippoint(aes(color = present), shape = 16, size = 1.5)
+#ancestral_plot <- ancestral_plot + geom_tiplab(hjust = -0.2, size = 1.5)
+ancestral_plot
+
+
+### SV complexity as a discrete miltistate character
+lik.anc <- as.data.frame(rbind(model_results$tip.states, model_results$states))
+colnames(lik.anc) <- c("0", "1", "2", "3", "4")
+phylo_tree <- model_results$phy
+lik.anc$node <- c(1:length(phylo_tree$tip.label), (length(phylo_tree$tip.label) + 1):(phylo_tree$Nnode + length(phylo_tree$tip.label)))
+
+#plot the ancestral reconstruction, displaying each of the three trait states (cathemeral, diurnal, nocturnal)
+ancestral_plot <- ggtree(phylo_tree, layout = "circular") %<+% lik.anc + 
+  aes(color = 4) + geom_tippoint(aes(color = 4), shape = 16, size = 1) + 
+  scale_color_distiller(name = "SV presence", palette = "RdYlGn", direction = 1)  + 
+  geom_tiplab(color = "black", size = 1.5, offset = 0.5) + 
+  geom_tippoint(aes(color = 4), shape = 16, size = 1.5)
 #ancestral_plot <- ancestral_plot + geom_tiplab(hjust = -0.2, size = 1.5)
 ancestral_plot
 
